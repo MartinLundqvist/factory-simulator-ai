@@ -204,7 +204,7 @@ export interface SimParams {
 
 export const defaultParams: SimParams = {
   randomSeed: 42,
-  simHours: 4,
+  simHours: 1, // TODO: Update to 4 hours for production
   arrivalMean: 1.8 * MIN,
   cutTime: 1.2 * MIN,
   cellTime: 2.5 * MIN,
