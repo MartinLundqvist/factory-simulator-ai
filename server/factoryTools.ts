@@ -1,6 +1,10 @@
 import { FactorySimulation, SimParams } from "./FactorySimulation.js";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // MCP Tool definitions for the factory agent
 
@@ -126,7 +130,8 @@ export const factoryParamsTool: MCPTool = {
           },
           buf23Cap: {
             type: "number",
-            description: "Buffer capacity between cell processing and packaging",
+            description:
+              "Buffer capacity between cell processing and packaging",
           },
           stepDelayMs: {
             type: "number",
@@ -174,11 +179,17 @@ export async function executeFactoryControl(
     switch (action) {
       case "start":
         factory.start();
-        return { success: true, data: { message: "Factory simulation started" } };
+        return {
+          success: true,
+          data: { message: "Factory simulation started" },
+        };
 
       case "stop":
         factory.stop();
-        return { success: true, data: { message: "Factory simulation stopped" } };
+        return {
+          success: true,
+          data: { message: "Factory simulation stopped" },
+        };
 
       case "reset":
         factory.reset();
@@ -214,7 +225,10 @@ export async function executeFactoryParams(
         factory.updateParams(params);
         return {
           success: true,
-          data: { message: "Parameters updated", newParams: factory.getParams() },
+          data: {
+            message: "Parameters updated",
+            newParams: factory.getParams(),
+          },
         };
 
       default:
@@ -227,12 +241,7 @@ export async function executeFactoryParams(
 
 export async function readFactoryManual(query?: string): Promise<ToolResult> {
   try {
-    const manualPath = path.join(
-      process.cwd(),
-      "server",
-      "factory",
-      "manual.md"
-    );
+    const manualPath = path.join(__dirname, "manual.md");
     const manualContent = await fs.readFile(manualPath, "utf-8");
 
     if (query) {

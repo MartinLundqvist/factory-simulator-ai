@@ -1,19 +1,30 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
   FactorySimulation,
   defaultParams,
   SimParams,
-} from "./FactorySimulation.ts";
-import { FactoryAgent } from "./factoryAgent.ts";
+} from "./FactorySimulation.js";
+import { FactoryAgent } from "./factoryAgent.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-app.use(cors());
+// Configure CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || (isDevelopment ? '*' : false),
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Initialize factory simulation
@@ -22,6 +33,15 @@ const factoryClients: Set<express.Response> = new Set();
 
 // Initialize factory AI SDK agent (lazy initialization)
 let factoryAgent: FactoryAgent | null = null;
+
+// Health check endpoint
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
+});
 
 function getFactoryAgent(): FactoryAgent {
   if (!factorySim) {
@@ -193,6 +213,19 @@ app.get("/api/factory/stream", (req, res) => {
   });
 });
 
+// Serve static files in production
+if (!isDevelopment) {
+  const clientPath = path.join(__dirname, '../client');
+  app.use(express.static(clientPath));
+
+  // Handle client-side routing - serve index.html for any non-API routes
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`Health check available at: http://localhost:${port}/api/health`);
 });

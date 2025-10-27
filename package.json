@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "tsx watch server/index.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run server\""
+    "dev:server": "tsx watch server/index.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "prebuild": "rm -rf dist",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "tsc && vite build",
+    "build:server": "tsc -p tsconfig.server.json && cp server/manual.md dist/server/manual.md",
+    "start": "NODE_ENV=production node dist/server/index.js",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
