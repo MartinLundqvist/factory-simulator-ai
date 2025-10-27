@@ -4,11 +4,11 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
-  FactorySimulation,
   defaultParams,
   SimParams,
 } from "./FactorySimulation.js";
 import { FactoryAgent } from "./factoryAgent.js";
+import { SessionManager } from "./sessionManager.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,45 +27,44 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Initialize factory simulation
-let factorySim: FactorySimulation | null = null;
-const factoryClients: Set<express.Response> = new Set();
+// Initialize session manager
+const sessionManager = new SessionManager();
 
-// Initialize factory AI SDK agent (lazy initialization)
-let factoryAgent: FactoryAgent | null = null;
+// Map to store factory agents per session
+const factoryAgents: Map<string, FactoryAgent> = new Map();
 
 // Health check endpoint
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development"
+    environment: process.env.NODE_ENV || "development",
+    activeSessions: sessionManager.getSessionCount()
   });
 });
 
-function getFactoryAgent(): FactoryAgent {
-  if (!factorySim) {
-    factorySim = new FactorySimulation(defaultParams);
-  }
-  if (!factoryAgent) {
-    factoryAgent = new FactoryAgent(
-      factorySim,
+function getFactoryAgent(sessionId: string): FactoryAgent {
+  if (!factoryAgents.has(sessionId)) {
+    const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
+    factoryAgents.set(sessionId, new FactoryAgent(
+      session.simulation,
       process.env.OPENAI_API_KEY || ""
-    );
+    ));
   }
-  return factoryAgent;
+  return factoryAgents.get(sessionId)!;
 }
 
 // Factory chat endpoint using AI SDK - returns UI message stream
-app.post("/api/factory/chat-aisdk", async (req, res) => {
+app.post("/api/factory/:sessionId/chat-aisdk", async (req, res) => {
   try {
+    const { sessionId } = req.params;
     const { messages } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages array is required" });
     }
 
-    const agent = getFactoryAgent();
+    const agent = getFactoryAgent(sessionId);
 
     // Use the AI SDK factory agent's UI stream
     const response = await agent.streamUI(messages);
@@ -84,12 +83,11 @@ app.post("/api/factory/chat-aisdk", async (req, res) => {
 // Factory simulation endpoints
 
 // Get current factory parameters
-app.get("/api/factory/params", (_req, res) => {
+app.get("/api/factory/:sessionId/params", (req, res) => {
   try {
-    if (!factorySim) {
-      factorySim = new FactorySimulation(defaultParams);
-    }
-    res.json(factorySim.getParams());
+    const { sessionId } = req.params;
+    const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
+    res.json(session.simulation.getParams());
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to get factory parameters" });
@@ -97,15 +95,13 @@ app.get("/api/factory/params", (_req, res) => {
 });
 
 // Update factory parameters
-app.post("/api/factory/params", (req, res) => {
+app.post("/api/factory/:sessionId/params", (req, res) => {
   try {
+    const { sessionId } = req.params;
     const params: Partial<SimParams> = req.body;
-    if (!factorySim) {
-      factorySim = new FactorySimulation({ ...defaultParams, ...params });
-    } else {
-      factorySim.updateParams(params);
-    }
-    res.json({ success: true, params: factorySim.getParams() });
+    const session = sessionManager.getOrCreateSession(sessionId, { ...defaultParams, ...params });
+    session.simulation.updateParams(params);
+    res.json({ success: true, params: session.simulation.getParams() });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to update factory parameters" });
@@ -113,12 +109,11 @@ app.post("/api/factory/params", (req, res) => {
 });
 
 // Get current factory state
-app.get("/api/factory/state", (_req, res) => {
+app.get("/api/factory/:sessionId/state", (req, res) => {
   try {
-    if (!factorySim) {
-      factorySim = new FactorySimulation(defaultParams);
-    }
-    res.json(factorySim.getState());
+    const { sessionId } = req.params;
+    const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
+    res.json(session.simulation.getState());
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to get factory state" });
@@ -126,13 +121,12 @@ app.get("/api/factory/state", (_req, res) => {
 });
 
 // Start factory simulation
-app.post("/api/factory/start", (_req, res) => {
+app.post("/api/factory/:sessionId/start", (req, res) => {
   try {
-    if (!factorySim) {
-      factorySim = new FactorySimulation(defaultParams);
-    }
-    factorySim.start();
-    res.json({ success: true, state: factorySim.getState() });
+    const { sessionId } = req.params;
+    const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
+    session.simulation.start();
+    res.json({ success: true, state: session.simulation.getState() });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to start factory simulation" });
@@ -140,13 +134,15 @@ app.post("/api/factory/start", (_req, res) => {
 });
 
 // Stop factory simulation
-app.post("/api/factory/stop", (_req, res) => {
+app.post("/api/factory/:sessionId/stop", (req, res) => {
   try {
-    if (!factorySim) {
+    const { sessionId } = req.params;
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
       return res.status(400).json({ error: "No simulation running" });
     }
-    factorySim.stop();
-    res.json({ success: true, state: factorySim.getState() });
+    session.simulation.stop();
+    res.json({ success: true, state: session.simulation.getState() });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to stop factory simulation" });
@@ -154,13 +150,12 @@ app.post("/api/factory/stop", (_req, res) => {
 });
 
 // Reset factory simulation
-app.post("/api/factory/reset", (_req, res) => {
+app.post("/api/factory/:sessionId/reset", (req, res) => {
   try {
-    if (!factorySim) {
-      factorySim = new FactorySimulation(defaultParams);
-    }
-    factorySim.reset();
-    res.json({ success: true, state: factorySim.getState() });
+    const { sessionId } = req.params;
+    const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
+    session.simulation.reset();
+    res.json({ success: true, state: session.simulation.getState() });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Failed to reset factory simulation" });
@@ -168,22 +163,22 @@ app.post("/api/factory/reset", (_req, res) => {
 });
 
 // SSE endpoint for real-time state streaming
-app.get("/api/factory/stream", (req, res) => {
+app.get("/api/factory/:sessionId/stream", (req, res) => {
+  const { sessionId } = req.params;
+
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
 
-  // Add client to set
-  factoryClients.add(res);
+  // Get or create session
+  const session = sessionManager.getOrCreateSession(sessionId, defaultParams);
 
-  // Initialize simulation if needed
-  if (!factorySim) {
-    factorySim = new FactorySimulation(defaultParams);
-  }
+  // Add client to session
+  sessionManager.addClient(sessionId, res);
 
   // Send initial state
-  res.write(`data: ${JSON.stringify(factorySim.getState())}\n\n`);
+  res.write(`data: ${JSON.stringify(session.simulation.getState())}\n\n`);
 
   // Set up event listeners
   const stateHandler = (state: any) => {
@@ -198,18 +193,16 @@ app.get("/api/factory/stream", (req, res) => {
     res.write(`data: ${JSON.stringify({ ...state, reset: true })}\n\n`);
   };
 
-  factorySim.on("state", stateHandler);
-  factorySim.on("complete", completeHandler);
-  factorySim.on("reset", resetHandler);
+  session.simulation.on("state", stateHandler);
+  session.simulation.on("complete", completeHandler);
+  session.simulation.on("reset", resetHandler);
 
   // Clean up on client disconnect
   req.on("close", () => {
-    factoryClients.delete(res);
-    if (factorySim) {
-      factorySim.off("state", stateHandler);
-      factorySim.off("complete", completeHandler);
-      factorySim.off("reset", resetHandler);
-    }
+    sessionManager.removeClient(sessionId, res);
+    session.simulation.off("state", stateHandler);
+    session.simulation.off("complete", completeHandler);
+    session.simulation.off("reset", resetHandler);
   });
 });
 
@@ -228,4 +221,17 @@ app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`Health check available at: http://localhost:${port}/api/health`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  sessionManager.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  sessionManager.shutdown();
+  process.exit(0);
 });

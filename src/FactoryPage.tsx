@@ -4,6 +4,28 @@ import remarkGfm from "remark-gfm";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 
+// Generate or retrieve session ID (only logs once per app load)
+let sessionIdLogged = false;
+function getSessionId(): string {
+  const key = "factorySessionId";
+  let sessionId = localStorage.getItem(key);
+  if (!sessionId) {
+    // Generate UUID v4
+    sessionId = crypto.randomUUID();
+    localStorage.setItem(key, sessionId);
+    if (!sessionIdLogged) {
+      console.log("Generated new session ID:", sessionId);
+      sessionIdLogged = true;
+    }
+  } else {
+    if (!sessionIdLogged) {
+      console.log("Using existing session ID:", sessionId);
+      sessionIdLogged = true;
+    }
+  }
+  return sessionId;
+}
+
 interface ResourceStatus {
   capacity: number;
   inUse: number;
@@ -75,6 +97,10 @@ function FactoryPage() {
   const [showParamsForm, setShowParamsForm] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Session ID - stable across component lifecycle
+  const sessionIdRef = useRef<string>(getSessionId());
+  const sessionId = sessionIdRef.current;
+
   // Chat state
   const [showChat, setShowChat] = useState(false);
   const [showToolCalls, setShowToolCalls] = useState(true);
@@ -83,7 +109,7 @@ function FactoryPage() {
   // AI SDK useChat hook
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
-      api: "/api/factory/chat-aisdk",
+      api: `/api/factory/${sessionId}/chat-aisdk`,
     }),
   });
 
@@ -99,18 +125,18 @@ function FactoryPage() {
 
   // Fetch initial parameters
   useEffect(() => {
-    fetch("/api/factory/params")
+    fetch(`/api/factory/${sessionId}/params`)
       .then((res) => res.json())
       .then((data) => {
         setParams(data);
         setEditedParams(data);
       })
       .catch((err) => console.error("Error fetching params:", err));
-  }, []);
+  }, [sessionId]);
 
   // Set up SSE connection for real-time state updates
   useEffect(() => {
-    const eventSource = new EventSource("/api/factory/stream");
+    const eventSource = new EventSource(`/api/factory/${sessionId}/stream`);
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {
@@ -129,11 +155,11 @@ function FactoryPage() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [sessionId]);
 
   const handleStart = async () => {
     try {
-      await fetch("/api/factory/start", { method: "POST" });
+      await fetch(`/api/factory/${sessionId}/start`, { method: "POST" });
     } catch (err) {
       console.error("Error starting simulation:", err);
     }
@@ -141,7 +167,7 @@ function FactoryPage() {
 
   const handleStop = async () => {
     try {
-      await fetch("/api/factory/stop", { method: "POST" });
+      await fetch(`/api/factory/${sessionId}/stop`, { method: "POST" });
     } catch (err) {
       console.error("Error stopping simulation:", err);
     }
@@ -149,7 +175,7 @@ function FactoryPage() {
 
   const handleReset = async () => {
     try {
-      await fetch("/api/factory/reset", { method: "POST" });
+      await fetch(`/api/factory/${sessionId}/reset`, { method: "POST" });
     } catch (err) {
       console.error("Error resetting simulation:", err);
     }
@@ -157,7 +183,7 @@ function FactoryPage() {
 
   const handleUpdateParams = async () => {
     try {
-      const response = await fetch("/api/factory/params", {
+      const response = await fetch(`/api/factory/${sessionId}/params`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editedParams),
@@ -172,7 +198,7 @@ function FactoryPage() {
 
   const handleRefreshParams = async () => {
     try {
-      const response = await fetch("/api/factory/params");
+      const response = await fetch(`/api/factory/${sessionId}/params`);
       if (response.ok) {
         const data = await response.json();
         setParams(data);
