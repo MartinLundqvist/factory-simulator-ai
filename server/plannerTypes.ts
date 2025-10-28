@@ -50,7 +50,7 @@ export interface ParameterProposal {
   analysis: string;
   proposedChange: Partial<SimParams>;
   expectedOutcome: string;
-  confidence: "low" | "medium" | "high";
+  confidence: "low" | "medium" | "high" | string; // String type for flexibility with LLM responses
 }
 
 /**
@@ -70,24 +70,9 @@ export interface ExperimentResult {
   timestamp: number;
   params: SimParams;
   proposal: ParameterProposal;
-  metrics: MetricsAnalysis;
-  goalProgress: GoalProgress;
+  state: SimState; // Full simulation state (raw data)
+  progressSummary: string; // LLM's progress summary
   simulationDuration: number; // ms
-}
-
-/**
- * Progress toward each goal
- */
-export interface GoalProgress {
-  overall: number; // 0-1
-  goals: {
-    [key: string]: {
-      achieved: boolean;
-      current: number;
-      target: number | null;
-      progress: number; // 0-1
-    };
-  };
 }
 
 /**
@@ -95,19 +80,18 @@ export interface GoalProgress {
  */
 export type PlannerEvent =
   | { type: "planner:start"; goal: string; maxIterations: number }
-  | { type: "planner:goal_parsed"; objectives: ParsedObjectives }
   | { type: "planner:iteration_start"; iteration: number }
   | { type: "planner:phase"; phase: string; message: string }
-  | { type: "planner:metrics"; metrics: MetricsAnalysis }
+  | { type: "planner:metrics_before"; metrics: MetricsAnalysis; label: string }
+  | { type: "planner:progress_evaluation"; goalInterpretation: string; progressEvaluation: string; progressSummary: string }
   | { type: "planner:proposal"; proposal: ParameterProposal }
   | { type: "planner:validation"; validation: ValidationResult }
   | { type: "planner:params_updated"; params: Partial<SimParams> }
   | { type: "planner:simulation_start" }
   | { type: "planner:simulation_progress"; state: SimState; progress: number }
-  | { type: "planner:simulation_complete"; metrics: MetricsAnalysis; duration: number }
-  | { type: "planner:goal_progress"; progress: GoalProgress }
-  | { type: "planner:iteration_complete"; iteration: number; improved: boolean; goalAchieved: boolean }
-  | { type: "planner:complete"; success: boolean; message: string; bestResult: ExperimentResult | null }
+  | { type: "planner:metrics_after"; metrics: MetricsAnalysis; duration: number; label: string }
+  | { type: "planner:iteration_complete"; iteration: number; progressSummary: string }
+  | { type: "planner:complete"; success: boolean; message: string; finalMetrics: MetricsAnalysis }
   | { type: "planner:error"; error: string };
 
 /**

@@ -361,20 +361,9 @@ function PlannerPage() {
       );
     }
 
+    // Legacy event - removed in favor of progress_evaluation
     if (type === "planner:goal_parsed") {
-      return (
-        <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
-          <div className="font-semibold text-purple-900 mb-2">
-            Goals Identified
-          </div>
-          {data.objectives.goals.map((goal: any, idx: number) => (
-            <div key={idx} className="text-sm text-gray-700 mb-1">
-              • {goal.description}
-              {goal.target && ` (target: ${goal.target})`}
-            </div>
-          ))}
-        </div>
-      );
+      return null;
     }
 
     if (type === "planner:phase") {
@@ -395,13 +384,13 @@ function PlannerPage() {
       );
     }
 
-    if (type === "planner:metrics") {
+    if (type === "planner:metrics_before") {
       return (
-        <div className="bg-white border border-gray-200 p-3 rounded">
-          <div className="font-semibold text-gray-800 mb-2">
-            Current Metrics
+        <div className="bg-blue-50 border border-blue-300 p-3 rounded">
+          <div className="font-semibold text-blue-900 mb-1">
+            📊 {data.label}
           </div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
+          <div className="grid grid-cols-3 gap-3 text-sm mt-2">
             <div>
               <div className="text-gray-600">Throughput</div>
               <div className="font-semibold">
@@ -426,6 +415,48 @@ function PlannerPage() {
               Bottleneck: {data.metrics.bottleneck.resource} (
               {(data.metrics.bottleneck.utilization * 100).toFixed(1)}%
               utilization)
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (type === "planner:metrics_after") {
+      return (
+        <div className="bg-green-50 border border-green-300 p-3 rounded">
+          <div className="font-semibold text-green-900 mb-1">
+            ✅ {data.label}
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-sm mt-2">
+            <div>
+              <div className="text-gray-600">Throughput</div>
+              <div className="font-semibold">
+                {data.metrics.throughput.toFixed(1)} items/hr
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-600">Cycle Time</div>
+              <div className="font-semibold">
+                {data.metrics.avgCycleTime.toFixed(1)} min
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-600">WIP</div>
+              <div className="font-semibold">
+                {data.metrics.avgWip.toFixed(1)}
+              </div>
+            </div>
+          </div>
+          {data.metrics.bottleneck && (
+            <div className="mt-2 text-xs text-gray-600">
+              Bottleneck: {data.metrics.bottleneck.resource} (
+              {(data.metrics.bottleneck.utilization * 100).toFixed(1)}%
+              utilization)
+            </div>
+          )}
+          {data.duration > 0 && (
+            <div className="mt-2 text-xs text-gray-500">
+              Simulation time: {(data.duration / 1000).toFixed(1)}s
             </div>
           )}
         </div>
@@ -487,73 +518,68 @@ function PlannerPage() {
       );
     }
 
+    if (type === "planner:progress_evaluation") {
+      return (
+        <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
+          <div className="font-semibold text-purple-900 mb-2">
+            🤖 LLM Progress Evaluation
+          </div>
+          <div className="space-y-2 text-sm">
+            <div>
+              <div className="text-xs text-gray-600 font-medium mb-1">
+                Goal Interpretation:
+              </div>
+              <div className="text-gray-800">{data.goalInterpretation}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 font-medium mb-1">
+                Progress Assessment:
+              </div>
+              <div className="text-gray-800">{data.progressEvaluation}</div>
+            </div>
+            <div className="pt-2 border-t border-purple-200">
+              <span className="inline-block bg-purple-200 text-purple-900 px-2 py-1 rounded text-xs font-medium">
+                {data.progressSummary}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (type === "planner:params_updated") {
       return (
         <div className="bg-blue-50 border border-blue-200 p-2 rounded text-sm">
-          <span className="font-medium">Parameters updated:</span>{" "}
+          <span className="font-medium">⚙️ Parameters updated:</span>{" "}
           {JSON.stringify(data.params)}
         </div>
       );
     }
 
+    // Legacy events - removed
     if (type === "planner:simulation_complete") {
-      return (
-        <div className="bg-green-50 border border-green-200 p-2 rounded text-sm">
-          <span className="font-medium">Simulation complete</span> (
-          {(data.duration / 1000).toFixed(1)}s)
-        </div>
-      );
+      return null;
     }
 
     if (type === "planner:goal_progress") {
-      const progress = data.progress.overall * 100;
-      return (
-        <div className="bg-purple-50 border border-purple-200 p-3 rounded">
-          <div className="font-semibold text-purple-900 mb-2">
-            Goal Progress
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div
-              className="bg-purple-600 h-3 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-          <div className="text-sm text-gray-700 mt-1">
-            {progress.toFixed(1)}% complete
-          </div>
-        </div>
-      );
+      return null;
     }
 
+    // Legacy event - removed in favor of progress_evaluation
     if (type === "planner:iteration_complete") {
-      const goalAchieved = data.goalAchieved;
-      const improved = data.improved;
-
-      let statusText = "";
-      let bgColor = "";
-      let borderColor = "";
-
-      if (goalAchieved) {
-        statusText = "✓ Goal Achieved";
-        bgColor = "bg-green-50";
-        borderColor = "border-green-500";
-      } else if (improved) {
-        statusText = "↗ Improved (Goal not achieved)";
-        bgColor = "bg-blue-50";
-        borderColor = "border-blue-500";
-      } else {
-        statusText = "→ No improvement";
-        bgColor = "bg-gray-50";
-        borderColor = "border-gray-400";
-      }
-
-      return (
-        <div className={`border-l-4 p-2 rounded ${bgColor} ${borderColor}`}>
-          <div className="text-sm font-medium">
-            Iteration {data.iteration} complete {statusText}
-          </div>
-        </div>
-      );
+      return null;
+      // return (
+      //   <div className="border-l-4 border-gray-400 p-2 rounded bg-gray-50">
+      //     <div className="text-sm font-medium text-gray-700">
+      //       ✓ Iteration {data.iteration} complete
+      //       {data.progressSummary && (
+      //         <span className="ml-2 text-gray-600">
+      //           • {data.progressSummary}
+      //         </span>
+      //       )}
+      //     </div>
+      //   </div>
+      // );
     }
 
     if (type === "planner:complete") {

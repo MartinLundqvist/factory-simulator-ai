@@ -241,17 +241,16 @@ app.post("/api/factory/:sessionId/planner/optimize", async (req, res) => {
 
     // Listen to all planner events
     planner.on("planner:start", eventHandler);
-    planner.on("planner:goal_parsed", eventHandler);
     planner.on("planner:iteration_start", eventHandler);
     planner.on("planner:phase", eventHandler);
-    planner.on("planner:metrics", eventHandler);
+    planner.on("planner:metrics_before", eventHandler);
+    planner.on("planner:progress_evaluation", eventHandler);
     planner.on("planner:proposal", eventHandler);
     planner.on("planner:validation", eventHandler);
     planner.on("planner:params_updated", eventHandler);
     planner.on("planner:simulation_start", eventHandler);
     // planner.on("planner:simulation_progress", eventHandler);
-    planner.on("planner:simulation_complete", eventHandler);
-    planner.on("planner:goal_progress", eventHandler);
+    planner.on("planner:metrics_after", eventHandler);
     planner.on("planner:iteration_complete", eventHandler);
     planner.on("planner:complete", eventHandler);
     planner.on("planner:error", eventHandler);
