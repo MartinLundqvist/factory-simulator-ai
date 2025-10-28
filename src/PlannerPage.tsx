@@ -73,6 +73,7 @@ function PlannerPage() {
   const [maxIterations, setMaxIterations] = useState(10);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [messages, setMessages] = useState<PlannerMessage[]>([]);
+  const [showResetModal, setShowResetModal] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const plannerAbortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -210,9 +211,58 @@ function PlannerPage() {
     }
   };
 
-  const handleClearChat = () => {
+  const handleNewOptimization = () => {
+    setShowResetModal(true);
+  };
+
+  const handleConfirmReset = async () => {
+    setShowResetModal(false);
+
+    // Clear chat and objective
     setMessages([]);
     setObjective("");
+
+    // Reset factory to default parameters
+    try {
+      await fetch(`/api/factory/${sessionId}/params`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          randomSeed: 42,
+          simHours: 1,
+          arrivalMean: 1.8,
+          cutTime: 1.2,
+          cellTime: 2.5,
+          packTime: 1.0,
+          cutTimeVarLow: 0.8,
+          cutTimeVarHigh: 1.2,
+          cellTimeVarLow: 0.8,
+          cellTimeVarHigh: 1.2,
+          packTimeVarLow: 0.8,
+          packTimeVarHigh: 1.3,
+          cutterCapacity: 1,
+          robotCapacity: 1,
+          heaterCapacity: 1,
+          packerCapacity: 1,
+          buf12Cap: 5,
+          buf23Cap: 5,
+          stepDelayMs: 100,
+          failMTBF: 90,
+          failMTTR: 6,
+        }),
+      });
+
+      // Reset the factory simulation
+      await fetch(`/api/factory/${sessionId}/reset`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("Error resetting factory:", error);
+    }
+  };
+
+  const handleCancelReset = () => {
+    setShowResetModal(false);
   };
 
   const ResourceCard = ({
@@ -799,12 +849,12 @@ function PlannerPage() {
               </p>
             </div>
             <button
-              onClick={handleClearChat}
+              onClick={handleNewOptimization}
               disabled={isOptimizing}
               className="px-3 py-1.5 bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors hover:bg-indigo-800 disabled:bg-indigo-400 disabled:cursor-not-allowed"
-              title="Clear chat history"
+              title="Start a new optimization session"
             >
-              Clear Chat
+              New Optimization
             </button>
           </div>
         </div>
@@ -872,6 +922,36 @@ function PlannerPage() {
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-3">
+              Start New Optimization?
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              This will clear the chat history, reset your optimization goal, and
+              restore all factory parameters to their default values. This action
+              cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelReset}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmReset}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors hover:bg-indigo-700"
+              >
+                Yes, Reset Everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
