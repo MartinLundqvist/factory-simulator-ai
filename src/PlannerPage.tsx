@@ -210,6 +210,11 @@ function PlannerPage() {
     }
   };
 
+  const handleClearChat = () => {
+    setMessages([]);
+    setObjective("");
+  };
+
   const ResourceCard = ({
     name,
     resource,
@@ -640,21 +645,23 @@ function PlannerPage() {
       {/* Factory Visualization - Left Side */}
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-100">
         <div className="p-4 bg-white border-b border-gray-300">
-          <div className="flex items-center gap-4">
-            <div className="text-sm">
-              <span className="text-gray-600">Time: </span>
-              <span className="font-semibold">
-                {state?.time.toFixed(2) || "0.00"} min
-              </span>
-            </div>
-            <div
-              className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                state?.isRunning
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {state?.isRunning ? "Running" : "Stopped"}
+          <div className="flex items-center justify-end">
+            <div className="flex items-center gap-4">
+              <div className="text-sm">
+                <span className="text-gray-600">Time: </span>
+                <span className="font-semibold">
+                  {state?.time.toFixed(2) || "0.00"} min
+                </span>
+              </div>
+              <div
+                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                  state?.isRunning
+                    ? "bg-green-100 text-green-800"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {state?.isRunning ? "Running" : "Stopped"}
+              </div>
             </div>
           </div>
         </div>
@@ -784,10 +791,22 @@ function PlannerPage() {
       {/* Planner Panel - Right Side */}
       <div className="w-2/5 bg-white border-l border-gray-300 flex flex-col shadow-lg">
         <div className="p-4 border-b border-gray-300 bg-indigo-600 text-white">
-          <h2 className="text-lg font-bold">Automatic Optimization</h2>
-          <p className="text-sm text-indigo-100">
-            AI-powered planner optimizing your factory
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-lg font-bold">Automatic Optimization</h2>
+              <p className="text-sm text-indigo-100">
+                AI-powered planner optimizing your factory
+              </p>
+            </div>
+            <button
+              onClick={handleClearChat}
+              disabled={isOptimizing}
+              className="px-3 py-1.5 bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors hover:bg-indigo-800 disabled:bg-indigo-400 disabled:cursor-not-allowed"
+              title="Clear chat history"
+            >
+              Clear Chat
+            </button>
+          </div>
         </div>
 
         {/* Objective Input */}

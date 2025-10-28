@@ -102,7 +102,7 @@ function FactoryPage() {
   const sessionId = sessionIdRef.current;
 
   // Chat state
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState(true);
   const [showToolCalls, setShowToolCalls] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
