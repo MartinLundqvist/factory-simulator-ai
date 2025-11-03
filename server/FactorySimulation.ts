@@ -1,5 +1,10 @@
 // FactorySimulation.ts - Refactored for API control
 import { EventEmitter } from "events";
+import {
+  TimescaleDBClient,
+  TimescaleDBConfig,
+  TelemetryData,
+} from "./timescaleDB.js";
 
 /***********************
  * Minimal DES engine
@@ -490,6 +495,8 @@ export class FactorySimulation extends EventEmitter {
   private params: SimParams;
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
+  private dbClient: TimescaleDBClient | null = null;
+  private writeToLocalFoundation: boolean = false;
 
   constructor(params: SimParams = defaultParams) {
     super();
@@ -498,6 +505,32 @@ export class FactorySimulation extends EventEmitter {
     this.rng = new RNG(this.params.randomSeed);
     this.metrics = new Metrics(this.env);
     this.line = new Line(this.env, this.rng, this.metrics, this.params);
+
+    // Check environment variable for local foundation writing
+    this.writeToLocalFoundation =
+      process.env.WRITE_TO_LOCAL_FOUNDATION === "true";
+
+    // Initialize database client if enabled
+    if (this.writeToLocalFoundation) {
+      const timescale_db_config: TimescaleDBConfig = {
+        host: "localhost",
+        port: 5001,
+        user: "postgres",
+        password: "postgres",
+        database: "tsdb",
+        schema: "public",
+        table: "timeseries_data_numeric_processed",
+      };
+
+      this.dbClient = new TimescaleDBClient(timescale_db_config);
+      this.dbClient.connect().catch((error) => {
+        console.error(
+          "Failed to connect to TimescaleDB, disabling database writes:",
+          error
+        );
+        this.writeToLocalFoundation = false;
+      });
+    }
   }
 
   updateParams(newParams: Partial<SimParams>) {
@@ -531,6 +564,7 @@ export class FactorySimulation extends EventEmitter {
       }
 
       await this.env.step();
+      await this.pushTelemetryToFoundation();
       this.emit("state", this.getState());
     }, this.params.stepDelayMs);
   }
@@ -561,5 +595,51 @@ export class FactorySimulation extends EventEmitter {
       resources: this.line.getStatus(),
       metrics: this.metrics.getStatus(),
     };
+  }
+
+  private async pushTelemetryToFoundation() {
+    const telemetry = this.getState();
+
+    const queueLength = telemetry.resources.cutter.queueLength;
+    const cutterHealth = 0;
+    const cutterWIP = telemetry.resources.cutter.inUse;
+    const buffer12Level = telemetry.resources.buf12.items;
+    const robotHealth = telemetry.resources.robot.isFailed ? 1 : 0;
+    const robotWIP = telemetry.resources.robot.inUse;
+    const heaterHealth = 0;
+    const heaterWIP = telemetry.resources.heater.inUse;
+    const buffer23Level = telemetry.resources.buf23.items;
+    const packerHealth = 0;
+    const packerWIP = telemetry.resources.packer.inUse;
+    const finishedGoods = telemetry.metrics.completed;
+
+    const timestamp = Date.now();
+
+    const payload: TelemetryData = {
+      timestamp,
+      queueLength,
+      cutterHealth,
+      cutterWIP,
+      robotHealth,
+      robotWIP,
+      heaterHealth,
+      heaterWIP,
+      buffer12Level,
+      buffer23Level,
+      packerHealth,
+      packerWIP,
+      finishedGoods,
+    };
+
+    // console.log(payload);
+
+    // Write to TimescaleDB if enabled
+    if (this.writeToLocalFoundation && this.dbClient) {
+      try {
+        await this.dbClient.writeTelemetry(payload);
+      } catch (error) {
+        console.error("Failed to write telemetry to database:", error);
+      }
+    }
   }
 }
