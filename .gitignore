@@ -31,6 +31,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Database configurations
+server/config/db.local.ts
+server/config/db.stage.ts
+
 # TypeScript
 *.tsbuildinfo
 

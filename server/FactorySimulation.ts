@@ -226,7 +226,7 @@ export const defaultParams: SimParams = {
   packerCapacity: 1,
   buf12Cap: 5,
   buf23Cap: 5,
-  stepDelayMs: 100,
+  stepDelayMs: 250,
   failMTBF: 90 * MIN,
   failMTTR: 6 * MIN,
 };
@@ -496,7 +496,7 @@ export class FactorySimulation extends EventEmitter {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private dbClient: TimescaleDBClient | null = null;
-  private writeToLocalFoundation: boolean = false;
+  private writeToFoundation: boolean = false;
 
   constructor(params: SimParams = defaultParams) {
     super();
@@ -506,30 +506,52 @@ export class FactorySimulation extends EventEmitter {
     this.metrics = new Metrics(this.env);
     this.line = new Line(this.env, this.rng, this.metrics, this.params);
 
-    // Check environment variable for local foundation writing
-    this.writeToLocalFoundation =
-      process.env.WRITE_TO_LOCAL_FOUNDATION === "true";
+    // Check environment variable for foundation writing mode
+    const writeMode = process.env.WRITE_TO_FOUNDATION_ENV;
 
-    // Initialize database client if enabled
-    if (this.writeToLocalFoundation) {
-      const timescale_db_config: TimescaleDBConfig = {
-        host: "localhost",
-        port: 5001,
-        user: "postgres",
-        password: "postgres",
-        database: "tsdb",
-        schema: "public",
-        table: "timeseries_data_numeric_processed",
-      };
+    // Initialize database client based on mode
+    if (writeMode === "local" || writeMode === "stage") {
+      this.initializeDatabaseClient(writeMode);
+    } else {
+      console.log(
+        "Database writes disabled (WRITE_TO_FOUNDATION_ENV not set or set to 'false')"
+      );
+    }
+  }
 
-      this.dbClient = new TimescaleDBClient(timescale_db_config);
-      this.dbClient.connect().catch((error) => {
-        console.error(
-          "Failed to connect to TimescaleDB, disabling database writes:",
-          error
-        );
-        this.writeToLocalFoundation = false;
-      });
+  private async initializeDatabaseClient(
+    mode: "local" | "stage"
+  ): Promise<void> {
+    try {
+      let dbConfig: TimescaleDBConfig;
+
+      if (mode === "local") {
+        // Dynamically import local config
+        const { localDbConfig } = await import("./config/db.local.js");
+        dbConfig = localDbConfig;
+      } else {
+        // Dynamically import stage config
+        const { stageDbConfig } = await import("./config/db.stage.js");
+        dbConfig = stageDbConfig;
+      }
+
+      this.dbClient = new TimescaleDBClient(dbConfig);
+      await this.dbClient.connect();
+      this.writeToFoundation = true;
+      console.log(
+        `Connected to TimescaleDB (${mode} mode) - database writes enabled`
+      );
+    } catch (error) {
+      console.error(
+        `Failed to initialize database connection (${mode} mode):`,
+        error
+      );
+      console.log(
+        "Continuing without database writes. Make sure config file exists at server/config/db." +
+          mode +
+          ".ts"
+      );
+      this.writeToFoundation = false;
     }
   }
 
@@ -634,7 +656,7 @@ export class FactorySimulation extends EventEmitter {
     // console.log(payload);
 
     // Write to TimescaleDB if enabled
-    if (this.writeToLocalFoundation && this.dbClient) {
+    if (this.writeToFoundation && this.dbClient) {
       try {
         await this.dbClient.writeTelemetry(payload);
       } catch (error) {
